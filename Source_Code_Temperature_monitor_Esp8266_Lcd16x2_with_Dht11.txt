@@ -1,0 +1,110 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+//Created by Muhtasim Zarif
+//fb.com/mdzarif55
+//https://github.com/mdzarif55
+// DHT Sensor settings
+#define DHTPIN D4         // Pin connected to the DHT sensor
+#define DHTTYPE DHT11     // DHT11 sensor type
+
+DHT dht(DHTPIN, DHTTYPE);
+
+// WiFi settings
+const char* ssid = "ESP8266_DHT11";
+const char* password = "12345678";
+
+// Create a web server on port 80
+ESP8266WebServer server(80);
+
+// LCD settings
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Set the LCD address to 0x27 for a 16 chars and 2 line display
+
+void setup() {
+  // Start the serial communication
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("Starting...");
+
+  // Initialize the DHT sensor
+  dht.begin();
+  
+  // Set up the WiFi Access Point
+  WiFi.softAP(ssid, password);
+  Serial.print("Access Point \"");
+  Serial.print(ssid);
+  Serial.println("\" started");
+  
+  // Print the IP address
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.softAPIP());
+  
+  // Define the root page handler
+  server.on("/", handleRoot);
+  
+  // Start the server
+  server.begin();
+  Serial.println("HTTP server started");
+
+  // Initialize the LCD
+  lcd.begin(16, 2); // Initialize the LCD with 16 columns and 2 rows
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+  // Handle incoming client requests
+  server.handleClient();
+
+  // Read the humidity and temperature values
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t)) {
+    lcd.setCursor(0, 0);
+    lcd.print("Sensor Error    ");
+    delay(2000);
+    return;
+  }
+
+  // Display the sensor data on the LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Temp: ");
+  lcd.print(t);
+  lcd.print(" C");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Humidity: ");
+  lcd.print(h);
+  lcd.print(" %");
+
+  delay(2000); // Wait for 2 seconds before updating the display
+}
+
+void handleRoot() {
+  // Read the humidity and temperature values
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t)) {
+    server.send(500, "text/plain", "Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Create an HTML page with the sensor data
+  String html = "<html><body><h1>ESP8266 DHT11 Sensor</h1>";
+  html += "<p>Temperature: ";
+  html += String(t);
+  html += " °C</p>";
+  html += "<p>Humidity: ";
+  html += String(h);
+  html += " %</p>";
+  html += "</body></html>";
+
+  // Send the HTML page to the client
+  server.send(200, "text/html", html);
+}
